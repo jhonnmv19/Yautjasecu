@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Yautjasecu</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            customDarkRed: '#4a0e17',
+            customGray: '#5c595a',
+            customLightBg: '#f6f0f0',
+            customBorder: '#dbcdd0',
+            customDark: '#1f1a1b',
+            primary: '#b14852',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @keyframes slideIn {
+      from { transform: translateY(-20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .animate-toast { animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+  </style>
+</head>
+<body class="bg-customLightBg min-h-screen flex flex-col text-customDark relative">
+
+  <!-- NOTIFICACIÓN TOAST REUTILIZABLE -->
+  <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+  <!-- HEADER NAVEGACIÓN -->
+  <header class="bg-customDark text-white border-b border-customDarkRed/40 sticky top-0 z-40 shadow-md">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white shadow-md relative overflow-hidden">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 11c0 3.5-2 5.5-3.5 7M12 11c0 3.5 2 5.5 3.5 7M12 7a4 4 0 100 8 4 4 0 000-8z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l3-3m8 3l-3-3" class="text-customLightBg"></path>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-xl font-extrabold tracking-tight leading-none">YAUTJASECU</h1>
+          <span class="text-xs text-primary font-semibold">Panel de Control de Usuario</span>
+        </div>
+      </div>
+      
+      <div class="flex items-center space-x-4">
+        <a href="validator.html" class="text-xs font-semibold text-customLightBg/80 hover:text-white transition">Validador Público</a>
+        <button id="btn-logout" class="bg-customDarkRed hover:bg-[#9a3d46] text-white px-4 py-2 rounded-lg font-semibold text-xs shadow-sm transition">Cerrar Sesión</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="max-w-4xl mx-auto p-6 space-y-6 flex-grow w-full">
+    
+    <!-- 1. Estado de la Cuenta -->
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-customBorder">
+      <h2 class="text-lg font-bold text-customDarkRed mb-3">Estado de la Cuenta e Identidad</h2>
+      <div class="grid sm:grid-cols-2 gap-4 text-sm">
+        <div class="p-3 bg-customLightBg/50 rounded-xl border border-customBorder">
+          <span class="text-xs text-customGray font-medium block">Usuario Registrado:</span>
+          <span id="lbl-nombre" class="font-bold text-customDark text-base">Cargando...</span>
+        </div>
+        <div class="p-3 bg-customLightBg/50 rounded-xl border border-customBorder flex flex-col justify-center">
+          <span class="text-xs text-customGray font-medium block mb-1">Estado del Expediente:</span>
+          <div>
+            <span id="lbl-estado" class="px-2.5 py-1 rounded-md text-xs font-bold inline-block">Cargando...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Alerta de revisión -->
+      <div id="alerta-inactivo" class="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs hidden">
+        ⚠️ Tu cuenta se encuentra en proceso de revisión por parte del administrador. Una vez aprobada, se habilitarán automáticamente las opciones para generar tus claves PKI y firmar documentos.
+      </div>
+
+      <!-- Generación de Claves PKI -->
+      <div id="seccion-pki" class="mt-4 pt-4 border-t border-customBorder hidden">
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div>
+            <h3 class="text-sm font-bold text-customDark">Infraestructura de Clave Pública (PKI)</h3>
+            <p class="text-xs text-customGray">Genera tu par de claves criptográficas RSA-2048 para firmar documentos con no repudio.</p>
+          </div>
+          <button id="btn-generar-pki" class="w-full sm:w-auto bg-primary hover:bg-customDarkRed text-white px-5 py-2.5 rounded-xl font-semibold text-xs shadow-sm transition whitespace-nowrap">
+            Generar y Publicar Llaves PKI
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Módulo A: Firma de Documento -->
+    <div id="seccion-firma" class="bg-white p-6 rounded-2xl shadow-sm border border-customBorder hidden">
+      <h2 class="text-lg font-bold text-customDarkRed mb-1">Módulo A · Firmar Documento Digital</h2>
+      <p class="text-xs text-customGray mb-4">Sube un archivo PDF o documento oficial para aplicar tu firma digital vinculada con hash SHA-256.</p>
+      
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-customGray mb-1">Seleccionar documento a firmar (PDF) *</label>
+          <input type="file" id="archivo-firmar" accept="application/pdf" class="w-full p-2.5 border border-customBorder rounded-xl text-xs text-customGray file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-white hover:file:bg-customDarkRed cursor-pointer">
+        </div>
+        <button id="btn-firmar-doc" class="w-full bg-primary hover:bg-customDarkRed text-white px-5 py-3 rounded-xl font-semibold text-sm shadow-md transition">
+          Firmar y Registrar Hash (SHA-256) en Supabase
+        </button>
+      </div>
+    </div>
+
+    <!-- 3. Validador Rápido en Dashboard -->
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-customBorder">
+      <h2 class="text-lg font-bold text-customDark mb-1">Verificación Rápida de Archivos</h2>
+      <p class="text-xs text-customGray mb-4">Comprueba si un documento cuenta con una firma digital válida dentro del sistema.</p>
+      
+      <input type="file" id="archivo-verificar" accept="application/pdf" class="w-full p-2.5 border border-customBorder rounded-xl text-xs text-customGray file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-customGray file:text-white cursor-pointer mb-4">
+      <div id="resultado-verificacion"></div>
+    </div>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="bg-customDark text-white text-center p-6 text-xs border-t border-customDarkRed/40">
+    <p>&copy; 2026 Yautjasecu - Panel de Usuario & PKI</p>
+  </footer>
+
+  <!-- SCRIPT DE FUNCIONALIDAD -->
+  <script type="module">
+    import { supabase } from './js/supabase.js';
+    import { generarParLlavesRSA } from './js/pki.js';
+    import { calcularHashArchivo, firmarDocumento } from './js/signer.js';
+
+    const user = JSON.parse(localStorage.getItem('yautjasecu_user'));
+    if (!user) window.location.href = 'login.html';
+
+    // Función para mostrar notificaciones personalizadas (Sustituto de alert)
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      
+      const colors = {
+        success: 'bg-emerald-800 text-white border-emerald-600',
+        error: 'bg-rose-900 text-white border-rose-700',
+        warning: 'bg-amber-800 text-white border-amber-600',
+        info: 'bg-customDark text-white border-customDarkRed'
+      };
+
+      toast.className = `pointer-events-auto px-4 py-3 rounded-xl border shadow-xl text-xs font-semibold flex items-center space-x-2 animate-toast ${colors[type] || colors.info}`;
+      toast.innerHTML = `<span>${message}</span>`;
+      
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+
+    // Rellenar datos en pantalla
+    document.getElementById('lbl-nombre').textContent = `${user.nombres} ${user.apellido_paterno} ${user.apellido_materno || ''}`;
+    
+    const lblEstado = document.getElementById('lbl-estado');
+    lblEstado.textContent = user.estado_cuenta;
+
+    if (user.estado_cuenta === 'ACTIVO') {
+      lblEstado.className = "px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800 text-xs font-bold inline-block";
+      document.getElementById('seccion-pki').classList.remove('hidden');
+      document.getElementById('seccion-firma').classList.remove('hidden');
+      document.getElementById('alerta-inactivo').classList.add('hidden');
+    } else {
+      lblEstado.className = "px-2.5 py-1 rounded-md bg-amber-100 text-amber-800 text-xs font-bold inline-block";
+      document.getElementById('alerta-inactivo').classList.remove('hidden');
+    }
+
+    // Cerrar sesión
+    document.getElementById('btn-logout').addEventListener('click', () => {
+      localStorage.removeItem('yautjasecu_user');
+      window.location.href = 'login.html';
+    });
+
+    let llavesUsuario = null;
+
+    // Generar Claves PKI
+    document.getElementById('btn-generar-pki')?.addEventListener('click', async () => {
+      const btn = document.getElementById('btn-generar-pki');
+      btn.disabled = true;
+      btn.textContent = 'Generando par RSA-2048...';
+
+      try {
+        llavesUsuario = await generarParLlavesRSA();
+        const { error } = await supabase.from('claves_pki').insert([{
+          usuario_id: user.id,
+          clave_publica: llavesUsuario.publicKey,
+          algoritmo: 'RSA-2048'
+        }]);
+
+        if (error) throw error;
+        showToast('¡Par de llaves RSA-2048 generado y clave pública almacenada correctamente!', 'success');
+      } catch (err) {
+        showToast('Error generando PKI: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Generar y Publicar Llaves PKI';
+      }
+    });
+
+    // Firmar Documento (Adaptado a las tablas documentos_base y firmas_documento)
+    document.getElementById('btn-firmar-doc')?.addEventListener('click', async () => {
+      const fileInput = document.getElementById('archivo-firmar');
+      if (!fileInput.files.length) {
+        showToast('Por favor, selecciona un archivo PDF para firmar.', 'warning');
+        return;
+      }
+      if (!llavesUsuario) {
+        showToast('Primero debes generar tus llaves PKI en la sección superior.', 'warning');
+        return;
+      }
+
+      const btn = document.getElementById('btn-firmar-doc');
+      btn.disabled = true;
+      btn.textContent = 'Calculando hash y firmando criptográficamente...';
+
+      try {
+        const file = fileInput.files[0];
+        const buffer = await file.arrayBuffer();
+        const hash = await calcularHashArchivo(file);
+        const firma = await firmarDocumento(llavesUsuario.privateKey, buffer);
+
+        // 1. Obtener o registrar el documento en documentos_base
+        let { data: docBase, error: errDoc } = await supabase
+          .from('documentos_base')
+          .select('id')
+          .eq('hash_original_sha256', hash)
+          .maybeSingle();
+
+        if (!docBase) {
+          const { data: newDoc, error: insertDocErr } = await supabase
+            .from('documentos_base')
+            .insert([{
+              nombre_archivo: file.name,
+              tamanio_bytes: file.size,
+              hash_original_sha256: hash
+            }])
+            .select('id')
+            .single();
+
+          if (insertDocErr) throw insertDocErr;
+          docBase = newDoc;
+        }
+
+        // 2. Registrar la firma asociada en firmas_documento
+        const { error: errFirma } = await supabase.from('firmas_documento').insert([{
+          documento_id: docBase.id,
+          firmante_id: user.id,
+          hash_en_momento_firma: hash,
+          firma_digital: firma,
+          algoritmo_firma: 'SHA256withRSA',
+          validez_dias: 365,
+          fecha_expiracion: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+          estado_integridad: 'VALIDO'
+        }]);
+
+        if (errFirma) throw errFirma;
+
+        showToast('¡Documento firmado digitalmente y registrado en Supabase!', 'success');
+        fileInput.value = '';
+      } catch (err) {
+        showToast('Error al firmar el documento: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Firmar y Registrar Hash (SHA-256) en Supabase';
+      }
+    });
+
+    // Verificación rápida en Dashboard adaptada a firmas múltiples
+    document.getElementById('archivo-verificar').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      const resDiv = document.getElementById('resultado-verificacion');
+      if (!file) return;
+
+      resDiv.innerHTML = `<p class="text-xs text-customGray italic">Calculando huella digital y buscando firmas...</p>`;
+
+      try {
+        const hash = await calcularHashArchivo(file);
+
+        // Consulta sobre documentos_base y sus firmas registradas
+        const { data: doc, error } = await supabase
+          .from('documentos_base')
+          .select('*, firmas_documento(*, usuarios_yautjasecu(nombres, apellido_paterno))')
+          .eq('hash_original_sha256', hash)
+          .maybeSingle();
+
+        if (error || !doc || !doc.firmas_documento || doc.firmas_documento.length === 0) {
+          resDiv.innerHTML = `
+            <div class="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs">
+              🟡 <strong>Sin Firma o No Encontrado:</strong> El documento no cuenta con firmas registradas o ha sufrido alteraciones.
+            </div>
+          `;
+        } else {
+          const listaFirmas = doc.firmas_documento.map(f => {
+            const nombre = f.usuarios_yautjasecu ? `${f.usuarios_yautjasecu.nombres} ${f.usuarios_yautjasecu.apellido_paterno}` : 'Usuario Registrado';
+            return `<li class="ml-2">• <strong>Firmante:</strong> ${nombre} | <strong>Fecha:</strong> ${new Date(f.created_at).toLocaleString()}</li>`;
+          }).join('');
+
+          resDiv.innerHTML = `
+            <div class="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs space-y-2">
+              <p>🟢 <strong>Documento Válido e Íntegro (${doc.firmas_documento.length} firma/s encontrada/s):</strong></p>
+              <p>• <strong>Archivo:</strong> ${doc.nombre_archivo}</p>
+              <ul class="space-y-1">${listaFirmas}</ul>
+            </div>
+          `;
+        }
+      } catch (err) {
+        resDiv.innerHTML = `<p class="text-xs text-rose-600">Error al verificar archivo: ${err.message}</p>`;
+      }
+    });
+  </script>
+</body>
+</html>

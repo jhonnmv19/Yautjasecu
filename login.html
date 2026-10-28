@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Iniciar Sesión - Yautjasecu</title>
+  
+  <!-- Favicon / Logo de la pestaña -->
+  <link rel="icon" type="image/png" href="img/logo.png">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            customDarkRed: '#4a0e17',
+            customGray: '#5c595a',
+            customLightBg: '#f6f0f0',
+            customBorder: '#dbcdd0',
+            customDark: '#1f1a1b',
+            primary: '#b14852',
+            primaryHover: '#9a3d46'
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-customLightBg min-h-screen flex flex-col justify-between text-customDark">
+
+  <!-- HEADER NAVEGACIÓN -->
+  <header class="bg-customDark text-white border-b border-customDarkRed/40 sticky top-0 z-50 shadow-md">
+    <div class="max-w-6xl mx-auto px-6 py-3.5 flex justify-between items-center">
+      <a href="index.html" class="flex items-center space-x-3 group">
+        <div class="w-10 h-10 bg-white/5 border border-primary/40 rounded-xl flex items-center justify-center p-1.5 shadow-inner group-hover:border-primary transition">
+          <img src="img/logo.png" alt="Logo Yautjasecu" class="w-full h-full object-contain">
+        </div>
+        <div>
+          <h1 class="text-xl font-extrabold tracking-tight leading-none">YAUTJASECU</h1>
+          <span class="text-xs text-primary font-semibold">Firma Digital & PKI</span>
+        </div>
+      </a>
+      <div class="flex items-center space-x-3">
+        <a href="register.html" class="bg-primary hover:bg-primaryHover text-white text-xs font-semibold px-4 py-2 rounded-lg shadow-sm transition">Crear cuenta</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- FORMULARIO DE LOGIN -->
+  <main class="flex-grow flex items-center justify-center p-4">
+    <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-customBorder">
+      <div class="text-center mb-6">
+        <h2 class="text-2xl font-bold text-customDarkRed">Iniciar Sesión</h2>
+        <p class="text-xs text-customGray mt-1">Ingresa con tus credenciales de expediente digital</p>
+      </div>
+
+      <!-- Banner de Notificaciones In-line (Reemplaza los alerts) -->
+      <div id="notificacion-banner" class="hidden mb-4 p-3 rounded-lg text-xs font-medium"></div>
+
+      <form id="form-login" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-customGray mb-1">Correo Electrónico *</label>
+          <input type="email" id="correo" required class="w-full p-3 border border-customBorder rounded-lg focus:outline-none focus:border-primary text-sm" placeholder="ej. usuario@dominio.com">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-customGray mb-1">Contraseña *</label>
+          <input type="password" id="password" required class="w-full p-3 border border-customBorder rounded-lg focus:outline-none focus:border-primary text-sm" placeholder="••••••••••••">
+        </div>
+
+        <button type="submit" id="btn-login" class="w-full bg-primary hover:bg-customDarkRed text-white font-semibold p-3 rounded-lg transition text-sm shadow-md mt-2">
+          Ingresar al Sistema
+        </button>
+      </form>
+
+      <div class="mt-6 pt-4 border-t border-customBorder text-center space-y-2">
+        <p class="text-xs text-customGray">¿Aún no tienes expediente? <a href="register.html" class="text-primary font-semibold hover:underline">Regístrate aquí</a></p>
+        <a href="index.html" class="block text-xs text-customGray/70 hover:text-customDark hover:underline">← Volver al inicio</a>
+      </div>
+    </div>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="bg-customDark text-white text-center p-6 text-xs border-t border-customDarkRed/40">
+    <p>&copy; 2026 Yautjasecu - Seguridad Informática & PKI</p>
+  </footer>
+
+  <script type="module">
+    import { supabase } from './js/supabase.js';
+
+    const banner = document.getElementById('notificacion-banner');
+
+    function mostrarMensaje(mensaje, tipo = 'error') {
+      banner.textContent = mensaje;
+      banner.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700');
+      if (tipo === 'error') {
+        banner.classList.add('bg-red-100', 'text-red-700');
+      } else {
+        banner.classList.add('bg-green-100', 'text-green-700');
+      }
+    }
+
+    document.getElementById('form-login').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const correo = document.getElementById('correo').value.trim();
+      const password = document.getElementById('password').value;
+      const btn = document.getElementById('btn-login');
+
+      btn.disabled = true;
+      btn.textContent = 'Verificando credenciales...';
+
+      try {
+        const { data, error } = await supabase
+          .from('usuarios_yautjasecu')
+          .select('*')
+          .eq('correo', correo)
+          .single();
+
+        if (error || !data) throw new Error('Usuario o credenciales incorrectas.');
+
+        // Comprobación preliminar de contraseña
+        if (data.password_hash !== password) {
+          throw new Error('Contraseña incorrecta.');
+        }
+
+        // Guardar sesión local
+        localStorage.setItem('yautjasecu_user', JSON.stringify(data));
+
+        mostrarMensaje('¡Inicio de sesión exitoso! Redirigiendo...', 'success');
+        
+        setTimeout(() => {
+          if (data.rol === 'ADMIN') {
+            window.location.href = 'admin.html';
+          } else {
+            window.location.href = 'dashboard.html';
+          }
+        }, 1200);
+
+      } catch (err) {
+        mostrarMensaje(err.message || 'Error al iniciar sesión.');
+        btn.disabled = false;
+        btn.textContent = 'Ingresar al Sistema';
+      }
+    });
+  </script>
+</body>
+</html>

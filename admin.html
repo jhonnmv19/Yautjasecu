@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel de Administración - Yautjasecu</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            customDarkRed: '#4a0e17',
+            customGray: '#5c595a',
+            customLightBg: '#f6f0f0',
+            customBorder: '#dbcdd0',
+            customDark: '#1f1a1b',
+            primary: '#b14852',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @keyframes slideIn {
+      from { transform: translateY(-20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .animate-toast { animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+  </style>
+</head>
+<body class="bg-customLightBg min-h-screen flex flex-col text-customDark relative">
+
+  <!-- CONTENEDOR DE NOTIFICACIONES TOAST -->
+  <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+  <!-- HEADER NAVEGACIÓN ADMIN -->
+  <header class="bg-customDark text-white border-b border-customDarkRed/40 sticky top-0 z-40 shadow-md">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white shadow-md relative overflow-hidden">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-xl font-extrabold tracking-tight leading-none">YAUTJASECU</h1>
+          <span class="text-xs text-primary font-semibold">Panel de Administración General</span>
+        </div>
+      </div>
+      
+      <div class="flex items-center space-x-4">
+        <a href="dashboard.html" class="text-xs font-semibold text-customLightBg/80 hover:text-white transition">Ir a Panel de Usuario</a>
+        <button id="btn-logout" class="bg-customDarkRed hover:bg-[#9a3d46] text-white px-4 py-2 rounded-lg font-semibold text-xs shadow-sm transition">Cerrar Sesión</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="max-w-7xl mx-auto p-6 space-y-8 flex-grow w-full">
+    
+    <!-- TARJETAS DE MÉTRICAS / ESTADÍSTICAS -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-customBorder flex items-center justify-between">
+        <div>
+          <span class="text-xs text-customGray font-medium block">Total Usuarios</span>
+          <h3 id="stat-usuarios" class="text-2xl font-black text-customDark">0</h3>
+        </div>
+        <div class="w-10 h-10 bg-customLightBg rounded-xl flex items-center justify-center text-primary font-bold">👤</div>
+      </div>
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-customBorder flex items-center justify-between">
+        <div>
+          <span class="text-xs text-customGray font-medium block">Expedientes Pendientes</span>
+          <h3 id="stat-expedientes" class="text-2xl font-black text-amber-700">0</h3>
+        </div>
+        <div class="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-amber-700 font-bold">🆔</div>
+      </div>
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-customBorder flex items-center justify-between">
+        <div>
+          <span class="text-xs text-customGray font-medium block">Documentos Registrados</span>
+          <h3 id="stat-documentos" class="text-2xl font-black text-customDark">0</h3>
+        </div>
+        <div class="w-10 h-10 bg-customLightBg rounded-xl flex items-center justify-center text-primary font-bold">📄</div>
+      </div>
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-customBorder flex items-center justify-between">
+        <div>
+          <span class="text-xs text-customGray font-medium block">Firmas Totales Emitidas</span>
+          <h3 id="stat-firmas" class="text-2xl font-black text-emerald-800">0</h3>
+        </div>
+        <div class="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-800 font-bold">✍️</div>
+      </div>
+    </div>
+
+    <!-- SECCIÓN 1: GESTIÓN DE USUARIOS Y ESTADOS DE CUENTA (CRUD) -->
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-customBorder space-y-4">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 class="text-lg font-bold text-customDarkRed">Gestión de Usuarios y Validación de Identidad</h2>
+          <p class="text-xs text-customGray">Administra los roles, activa cuentas de usuario o revisa sus expedientes adjuntos.</p>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-customLightBg text-customGray uppercase font-bold border-b border-customBorder">
+            <tr>
+              <th class="p-3">Usuario / Correo</th>
+              <th class="p-3">Nacionalidad / Nacimiento</th>
+              <th class="p-3">Estado Cuenta</th>
+              <th class="p-3">Rol</th>
+              <th class="p-3 text-right">Acciones CRUD</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-usuarios" class="divide-y divide-customBorder">
+            <tr><td colspan="5" class="p-4 text-center text-customGray italic">Cargando registros de usuarios...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- SECCIÓN 2: AUDITORÍA DE DOCUMENTOS BASE Y FIRMAS MÚLTIPLES -->
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-customBorder space-y-4">
+      <div>
+        <h2 class="text-lg font-bold text-customDark">Auditoría de Documentos y Firmas Múltiples</h2>
+        <p class="text-xs text-customGray">Listado general de los archivos validados y todas las firmas criptográficas asociadas en el sistema.</p>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-customLightBg text-customGray uppercase font-bold border-b border-customBorder">
+            <tr>
+              <th class="p-3">Documento / Tamaño</th>
+              <th class="p-3">Hash SHA-256 Original</th>
+              <th class="p-3">Firmas Vinculadas</th>
+              <th class="p-3 text-right">Gestión</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-documentos" class="divide-y divide-customBorder">
+            <tr><td colspan="4" class="p-4 text-center text-customGray italic">Cargando documentos registrados...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="bg-customDark text-white text-center p-6 text-xs border-t border-customDarkRed/40 mt-auto">
+    <p>&copy; 2026 Yautjasecu - Módulo de Administración y Control Criptográfico</p>
+  </footer>
+
+  <!-- MODAL DE EDICIÓN DE USUARIO -->
+  <div id="modal-editar" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-md p-6 rounded-2xl shadow-2xl border border-customBorder space-y-4">
+      <div class="flex justify-between items-center border-b border-customBorder pb-3">
+        <h3 class="text-sm font-bold text-customDarkRed">Editar Datos y Estado de Usuario</h3>
+        <button onclick="cerrarModal()" class="text-customGray hover:text-customDark font-bold text-sm">✕</button>
+      </div>
+      <form id="form-editar-usuario" class="space-y-3 text-xs">
+        <input type="hidden" id="edit-id">
+        <div>
+          <label class="block font-bold text-customGray mb-1">Nombres</label>
+          <input type="text" id="edit-nombres" class="w-full p-2.5 border border-customBorder rounded-xl" required>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-bold text-customGray mb-1">Apellido Paterno</label>
+            <input type="text" id="edit-paterno" class="w-full p-2.5 border border-customBorder rounded-xl" required>
+          </div>
+          <div>
+            <label class="block font-bold text-customGray mb-1">Apellido Materno</label>
+            <input type="text" id="edit-materno" class="w-full p-2.5 border border-customBorder rounded-xl">
+          </div>
+        </div>
+        <div>
+          <label class="block font-bold text-customGray mb-1">Estado de Cuenta</label>
+          <select id="edit-estado" class="w-full p-2.5 border border-customBorder rounded-xl bg-white">
+            <option value="PENDIENTE_VERIFICACION">PENDIENTE_VERIFICACION</option>
+            <option value="ACTIVO">ACTIVO</option>
+            <option value="SUSPENDIDO">SUSPENDIDO</option>
+          </select>
+        </div>
+        <div>
+          <label class="block font-bold text-customGray mb-1">Rol de Usuario</label>
+          <select id="edit-rol" class="w-full p-2.5 border border-customBorder rounded-xl bg-white">
+            <option value="CLIENTE">CLIENTE</option>
+            <option value="ADMIN">ADMIN</option>
+          </select>
+        </div>
+        <div class="flex justify-end space-x-2 pt-2">
+          <button type="button" onclick="cerrarModal()" class="px-4 py-2 border border-customBorder rounded-xl text-customGray font-semibold">Cancelar</button>
+          <button type="submit" class="px-4 py-2 bg-primary hover:bg-customDarkRed text-white rounded-xl font-semibold shadow-sm">Guardar Cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- SCRIPT DE ADMINISTRACIÓN -->
+  <script type="module">
+    import { supabase } from './js/supabase.js';
+
+    // Verificar sesión y rol de administrador
+    const user = JSON.parse(localStorage.getItem('yautjasecu_user'));
+    if (!user || user.rol !== 'ADMIN') {
+      window.location.href = 'login.html';
+    }
+
+    // Sistema de Notificaciones Toast (Sin usar alert)
+    window.showToast = function(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      
+      const colors = {
+        success: 'bg-emerald-800 text-white border-emerald-600',
+        error: 'bg-rose-900 text-white border-rose-700',
+        warning: 'bg-amber-800 text-white border-amber-600',
+        info: 'bg-customDark text-white border-customDarkRed'
+      };
+
+      toast.className = `pointer-events-auto px-4 py-3 rounded-xl border shadow-xl text-xs font-semibold flex items-center space-x-2 animate-toast ${colors[type] || colors.info}`;
+      toast.innerHTML = `<span>${message}</span>`;
+      
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+
+    // Cerrar sesión
+    document.getElementById('btn-logout').addEventListener('click', () => {
+      localStorage.removeItem('yautjasecu_user');
+      window.location.href = 'login.html';
+    });
+
+    // Cargar toda la información del panel
+    async function cargarPanelAdmin() {
+      await Promise.all([
+        cargarUsuarios(),
+        cargarDocumentosYAuditoria()
+      ]);
+    }
+
+    // 1. Cargar Usuarios (CRUD Leer y Actualizar/Eliminar)
+    async function cargarUsuarios() {
+      const { data: usuarios, error } = await supabase
+        .from('usuarios_yautjasecu')
+        .select('*, expedientes_identidad(*)')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        showToast('Error cargando usuarios: ' + error.message, 'error');
+        return;
+      }
+
+      document.getElementById('stat-usuarios').textContent = usuarios.length;
+      const pendientes = usuarios.filter(u => u.estado_cuenta === 'PENDIENTE_VERIFICACION').length;
+      document.getElementById('stat-expedientes').textContent = pendientes;
+
+      const tbody = document.getElementById('tabla-usuarios');
+      if (!usuarios.length) {
+        tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-customGray italic">No hay usuarios registrados.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = usuarios.map(u => {
+        const estadoColor = u.estado_cuenta === 'ACTIVO' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800';
+        return `
+          <tr class="hover:bg-customLightBg/40 transition">
+            <td class="p-3">
+              <span class="font-bold text-customDark block">${u.nombres} ${u.apellido_paterno} ${u.apellido_materno || ''}</span>
+              <span class="text-customGray">${u.correo}</span>
+            </td>
+            <td class="p-3">
+              <span class="block">${u.nacionalidad}</span>
+              <span class="text-customGray">${u.fecha_nacimiento}</span>
+            </td>
+            <td class="p-3">
+              <span class="px-2.5 py-1 rounded-md font-bold text-[10px] inline-block ${estadoColor}">${u.estado_cuenta}</span>
+            </td>
+            <td class="p-3 font-semibold text-customDarkRed">${u.rol}</td>
+            <td class="p-3 text-right space-x-2 whitespace-nowrap">
+              <button onclick="window.abrirEditar('${u.id}', '${u.nombres}', '${u.apellido_paterno}', '${u.apellido_materno || ''}', '${u.estado_cuenta}', '${u.rol}')" class="bg-customGray text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-customDark transition">Editar</button>
+              <button onclick="window.eliminarUsuario('${u.id}')" class="bg-customDarkRed text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-[#9a3d46] transition">Eliminar</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // 2. Cargar Documentos y Auditoría de Firmas Múltiples
+    async function cargarDocumentosYAuditoria() {
+      const { data: documentos, error } = await supabase
+        .from('documentos_base')
+        .select('*, firmas_documento(*, usuarios_yautjasecu(nombres, apellido_paterno, correo))')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        showToast('Error cargando documentos: ' + error.message, 'error');
+        return;
+      }
+
+      document.getElementById('stat-documentos').textContent = documentos.length;
+      
+      let totalFirmas = 0;
+      documentos.forEach(d => {
+        if (d.firmas_documento) totalFirmas += d.firmas_documento.length;
+      });
+      document.getElementById('stat-firmas').textContent = totalFirmas;
+
+      const tbody = document.getElementById('tabla-documentos');
+      if (!documentos.length) {
+        tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-customGray italic">No hay documentos registrados en el sistema.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = documentos.map(d => {
+        const tamMb = (d.tamanio_bytes / (1024 * 1024)).toFixed(2);
+        const listaFirmas = d.firmas_documento && d.firmas_documento.length > 0
+          ? d.firmas_documento.map(f => {
+              const firmante = f.usuarios_yautjasecu ? `${f.usuarios_yautjasecu.nombres} ${f.usuarios_yautjasecu.apellido_paterno}` : 'Usuario Externo / Eliminado';
+              return `<div class="p-2 bg-customLightBg/60 rounded-lg mb-1 border border-customBorder text-[11px]">
+                ✍️ <strong>${firmante}</strong><br>
+                <span class="text-customGray">Fecha: ${new Date(f.created_at).toLocaleString()} | Algoritmo: ${f.algoritmo_firma}</span>
+              </div>`;
+            }).join('')
+          : `<span class="text-amber-700 italic">Sin firmas registradas</span>`;
+
+        return `
+          <tr class="hover:bg-customLightBg/40 transition">
+            <td class="p-3">
+              <span class="font-bold text-customDark block">${d.nombre_archivo}</span>
+              <span class="text-customGray">${tamMb} MB • Subido el ${new Date(d.created_at).toLocaleDateString()}</span>
+            </td>
+            <td class="p-3 font-mono text-[11px] text-customGray break-all max-w-xs">${d.hash_original_sha256}</td>
+            <td class="p-3">${listaFirmas}</td>
+            <td class="p-3 text-right">
+              <button onclick="window.eliminarDocumento('${d.id}')" class="bg-customDarkRed text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-[#9a3d46] transition">Eliminar Doc</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Funciones Globales para CRUD de Usuarios y Documentos
+    window.abrirEditar = function(id, nombres, paterno, materno, estado, rol) {
+      document.getElementById('edit-id').value = id;
+      document.getElementById('edit-nombres').value = nombres;
+      document.getElementById('edit-paterno').value = paterno;
+      document.getElementById('edit-materno').value = materno;
+      document.getElementById('edit-estado').value = estado;
+      document.getElementById('edit-rol').value = rol;
+      document.getElementById('modal-editar').classList.remove('hidden');
+    }
+
+    window.cerrarModal = function() {
+      document.getElementById('modal-editar').classList.add('hidden');
+    }
+
+    // Guardar Edición de Usuario
+    document.getElementById('form-editar-usuario').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('edit-id').value;
+      const nombres = document.getElementById('edit-nombres').value;
+      const apellido_paterno = document.getElementById('edit-paterno').value;
+      const apellido_materno = document.getElementById('edit-materno').value;
+      const estado_cuenta = document.getElementById('edit-estado').value;
+      const rol = document.getElementById('edit-rol').value;
+
+      const { error } = await supabase
+        .from('usuarios_yautjasecu')
+        .update({ nombres, apellido_paterno, apellido_materno, estado_cuenta, rol })
+        .eq('id', id);
+
+      if (error) {
+        showToast('Error al actualizar usuario: ' + error.message, 'error');
+      } else {
+        showToast('¡Usuario actualizado correctamente!', 'success');
+        cerrarModal();
+        cargarUsuarios();
+      }
+    });
+
+    // Eliminar Usuario
+    window.eliminarUsuario = async function(id) {
+      if (!confirm('¿Estás seguro de eliminar este usuario? Se eliminarán en cascada sus claves PKI, expedientes y registros.')) return;
+
+      const { error } = await supabase.from('usuarios_yautjasecu').delete().eq('id', id);
+      if (error) {
+        showToast('Error al eliminar usuario: ' + error.message, 'error');
+      } else {
+        showToast('Usuario eliminado con éxito.', 'success');
+        cargarUsuarios();
+      }
+    }
+
+    // Eliminar Documento Base
+    window.eliminarDocumento = async function(id) {
+      if (!confirm('¿Estás seguro de eliminar este documento base y todas sus firmas asociadas?')) return;
+
+      const { error } = await supabase.from('documentos_base').delete().eq('id', id);
+      if (error) {
+        showToast('Error al eliminar documento: ' + error.message, 'error');
+      } else {
+        showToast('Documento y firmas eliminados correctamente.', 'success');
+        cargarDocumentosYAuditoria();
+      }
+    }
+
+    // Inicializar carga al abrir la página
+    cargarPanelAdmin();
+  </script>
+</body>
+</html>
